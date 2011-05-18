@@ -6,15 +6,13 @@ require "time"
 require "logger"
 
 # Command to set the System Date/Time
-SETTIME 	= "/bin/date --set=\"%s\""
-
-SETDATEFORMAT = "%Y-%m-%d %H:%M:%S"
+SETTIME			= "/bin/date --set=\"%s\""
+SETDATEFORMAT	= "%Y-%m-%d %H:%M:%S"
 
 # Logfile
-LOGFILE 	= "/var/log/settime.log"
-
-# Loglevel
-LOGLEVEL 	= Logger::DEBUG
+LOGFILE			= "/var/log/settime.log"
+LOGDATEFORMAT	= "%a, %d.%m.%Y %H:%M:%S"
+LOGLEVEL		= Logger::DEBUG
 
 # The Date/Time for BIOS WakeOnAlarm
 woa_year = Time.now.year
@@ -41,7 +39,7 @@ log.level = LOGLEVEL
 log.info "=== new settime call ==="
 log.debug "Script: #{File.expand_path(__FILE__)}"
 log.debug "AGRV: #{ARGV}"
-log.debug "Time now: #{Time.now.strftime("%a, %d.%m.%Y %H:%M:%S")}"
+log.debug "Time now: #{Time.now.strftime(LOGDATEFORMAT)}"
 
 if nexwakeupts == nil
 	log.info "no wakeuptime given - exit"
@@ -54,10 +52,10 @@ wakeup_in_seconds = wakeuptime.to_i - Time.now.to_i
 log.debug "wakeup in seconds: %.0f (%.0f min)" % [wakeup_in_seconds, wakeup_in_seconds/60]
 
 if wakeup_in_seconds > 0
-	log.info "next Wakeup: #{wakeuptime.strftime("%a, %d.%m.%Y %H:%M:%S")}"
+	log.info "next Wakeup: #{wakeuptime.strftime(LOGDATEFORMAT)}"
 	log.debug "   Timestamp: #{nexwakeupts}"
 	log.debug "   with #{offset} min offset: #{Time.at(nexwakeupts - (offset*60)).to_i}"
-	log.debug "      #{Time.at(nexwakeupts - (offset*60)).strftime("%a, %d.%m.%Y %H:%M:%S")}"
+	log.debug "      #{Time.at(nexwakeupts - (offset*60)).strftime(LOGDATEFORMAT)}"
 
 	unless WAKEONALARM
 		raise "no wakeonalarm set"
@@ -65,12 +63,12 @@ if wakeup_in_seconds > 0
 
 	system_time = Time.at(WAKEONALARM.to_i - wakeup_in_seconds + (offset*60))
 
-	log.info "setting system time to #{system_time.strftime("%Y-%m-%d %H:%M:%S")}"
+	log.info "setting system time to #{system_time.strftime(LOGDATEFORMAT)}"
 	log.debug "   Timestamp: #{system_time.to_i}"
 
 	if system_time.utc? == false
 		system_time = Time.at(system_time.to_i + system_time.gmt_offset)
-		log.info "setting system time (utc) to #{system_time.strftime("%Y-%m-%d %H:%M:%S")}"
+		log.info "setting system time (utc) to #{system_time.strftime(LOGDATEFORMAT)}"
 		log.debug "   Offset: #{system_time.gmt_offset} Timestamp: #{system_time.to_i}"
 	end
 
