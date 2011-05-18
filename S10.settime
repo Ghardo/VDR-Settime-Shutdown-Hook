@@ -35,17 +35,6 @@ offset 			= 10
 
 nexwakeupts = ARGV[0].to_i
 
-t2fs_data	 		= `sudo /sbin/tune2fs -l /dev/hda1`
-
-t2fs_data 			=~ /Mount\scount:\s+(\d+)/
-mount_count 		= $1.to_i
-
-t2fs_data 			=~ /Maximum\smount\scount:\s+(\d+)/
-max_mount_count 	= $1.to_i
-
-t2fs_data 			=~ /Next\scheck\safter:\s+(.*?)$/
-next_check_after 	= $1
-
 # ====================================================================
 log = Logger.new(LOGFILE, 10, 1024000)
 log.level = LOGLEVEL
@@ -54,17 +43,9 @@ log.debug "Script: #{File.expand_path(__FILE__)}"
 log.debug "AGRV: #{ARGV}"
 log.debug "Time now: #{Time.now.strftime("%a, %d.%m.%Y %H:%M:%S")}"
 
-log.info "/dev/hda1 mounts #{mount_count}/#{max_mount_count}"
-log.info "Next fsck after: #{next_check_after}"
-
 if nexwakeupts == nil
 	log.info "no wakeuptime given - exit"
 	exit 0
-end
-
-if mount_count >= max_mount_count then
-	puts "FSCK next boot (next mount count reached) - setting offset to 20 min"
-	offset = 20
 end
 
 wakeuptime = Time.at nexwakeupts
@@ -80,12 +61,6 @@ if wakeup_in_seconds > 0
 
 	unless WAKEONALARM
 		raise "no wakeonalarm set"
-	end
-
-	if Time.parse(next_check_after).to_i <= Time.at(WAKEONALARM.to_i - wakeup_in_seconds + (offset*60)).to_i then
-		offset = 20
-		log.info "FSCK next boot (next check after date) - setting offset to 20 min"
-		log.debug "#{Time.at(nexwakeupts - (offset*60)).strftime("%a, %d.%m.%Y %H:%M:%S")}"
 	end
 
 	system_time = Time.at(WAKEONALARM.to_i - wakeup_in_seconds + (offset*60))
