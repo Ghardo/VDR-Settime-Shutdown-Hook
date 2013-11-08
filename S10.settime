@@ -92,4 +92,8 @@ class VDRWakeupSystemTime
 end
 
 w = VDRWakeupSystemTime.new
+w.log "=== new settime call ==="
+w.log "Script: #{File.expand_path(__FILE__)}", Logger::DEBUG
+w.log "AGRV: #{ARGV}", Logger::DEBUG
+w.log "Time now: #{Time.now.strftime("%a, %d.%m.%Y %H:%M:%S")}", Logger::DEBUG
 w.setWakeup ARGV[0].to_i
