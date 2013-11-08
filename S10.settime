@@ -1,82 +1,95 @@
-#!/usr/bin/ruby
-# Ruby Settime Script for VDR
-# Version: 0.0.1
+#!/usr/bin/env ruby
+# -*- ruby encoding: utf-8 -*-
 
-require "time"
-require "logger"
+class VDRWakeupSystemTime
+  require "time"
+  require "logger"
 
-# Command to set the System Date/Time
-SETTIME			= "/bin/date --set=\"%s\""
-SETDATEFORMAT	= "%Y-%m-%d %H:%M:%S"
 
-# Logfile
-LOGFILE			= "/var/log/settime.log"
-LOGDATEFORMAT	= "%a, %d.%m.%Y %H:%M:%S"
-LOGLEVEL		= Logger::DEBUG
+  # Command to set the System Date/Time
+  SETTIME              = "/bin/date --set=\"%s\""
+  SETDATEFORMAT        = "%Y-%m-%d %H:%M:%S"
 
-# The Date/Time for BIOS WakeOnAlarm
-woa_year = Time.now.year
-woa_month = Time.now.month
+  # Logfile
+  LOGFILE              = "settime.log"
+  LOGDATEFORMAT        = "%a, %d.%m.%Y %H:%M:%S"
+  LOGLEVEL             = Logger::DEBUG
 
-if Time.now.day == 1
-	woa_month = woa_month - 1
-	if Time.now.month == 1
-		woa_year = woa_year - 1
-		woa_month = 12
-	end
+  # Constructor
+  def initialize
+    @logger = Logger.new(LOGFILE, 10, 1024000)
+    @logger.level = LOGLEVEL
+    self._initBiosTime
+  end
+
+  # Sets a new Wakeup
+  # @param timestamp
+  # @param offset
+  def setWakeup(timestamp, offset = 10)
+    wakeuptime = Time.at timestamp
+    wakeup_in_seconds = wakeuptime.to_i - Time.now.to_i
+
+    self.log "wakeup in seconds: %.0f (%.0f min)" % [wakeup_in_seconds, wakeup_in_seconds/60], Logger::DEBUG
+
+    if wakeup_in_seconds > 0
+      self.log "next Wakeup: #{wakeuptime.strftime(LOGDATEFORMAT)}"
+      self.log "   Timestamp: #{timestamp}", Logger::DEBUG
+      self.log " with #{offset} min offset: #{Time.at(timestamp - (offset*60)).to_i}", Logger::DEBUG
+      self.log " #{Time.at(timestamp - (offset*60)).strftime(LOGDATEFORMAT)}", Logger::DEBUG
+
+      unless @wakeonalarm
+        raise "no wakeonalarm set"
+      end
+
+      system_time = Time.at(@wakeonalarm.to_i - wakeup_in_seconds + (offset*60))
+      self._setSystemTime system_time
+
+    else
+      self.log "no next wakeup set"
+    end
+  end
+
+  # Logs a message
+  # @param message
+  # @param level
+  def log(message, level = Logger::INFO)
+    @logger.add level, message, "VDRWakeupSystemTime"
+  end
+
+  protected
+
+  # init the bios time to calculate the system time for wakeup
+  def _initBiosTime
+    # The Date/Time for BIOS WakeOnAlarm
+    woa_year = Time.now.year
+    woa_month = Time.now.month
+
+    if Time.now.day == 1
+            woa_month = woa_month - 1
+            if Time.now.month == 1
+                    woa_year = woa_year - 1
+                    woa_month = 12
+            end
+    end
+
+    @wakeonalarm = Time.local(woa_year,woa_month,1,23,59,59)
+  end
+
+  # sets the system time and writes it to the bios
+  def _setSystemTime time
+    self.log "setting system time to #{time.strftime(LOGDATEFORMAT)}"
+    self.log " Timestamp: #{time.to_i}"
+
+    if time.utc? == false
+      time = Time.at(time.to_i + time.gmt_offset)
+            self.log "setting system time (utc) to #{time.strftime(LOGDATEFORMAT)}"
+            self.log " Offset: #{time.gmt_offset} Timestamp: #{time.to_i}"
+    end
+
+    system "/sbin/hwclock -w"
+    system SETTIME % time.strftime(SETDATEFORMAT)
+  end
 end
 
-WAKEONALARM = Time.local(woa_year,woa_month,1,23,59,59)
-
-# The Offset in minutes for wakeup
-offset 			= 10
-
-nexwakeupts = ARGV[0].to_i
-
-# ====================================================================
-log = Logger.new(LOGFILE, 10, 1024000)
-log.level = LOGLEVEL
-log.info "=== new settime call ==="
-log.debug "Script: #{File.expand_path(__FILE__)}"
-log.debug "AGRV: #{ARGV}"
-log.debug "Time now: #{Time.now.strftime(LOGDATEFORMAT)}"
-
-if nexwakeupts == nil
-	log.info "no wakeuptime given - exit"
-	exit 0
-end
-
-wakeuptime = Time.at nexwakeupts
-wakeup_in_seconds = wakeuptime.to_i - Time.now.to_i
-
-log.debug "wakeup in seconds: %.0f (%.0f min)" % [wakeup_in_seconds, wakeup_in_seconds/60]
-
-if wakeup_in_seconds > 0
-	log.info "next Wakeup: #{wakeuptime.strftime(LOGDATEFORMAT)}"
-	log.debug "   Timestamp: #{nexwakeupts}"
-	log.debug "   with #{offset} min offset: #{Time.at(nexwakeupts - (offset*60)).to_i}"
-	log.debug "      #{Time.at(nexwakeupts - (offset*60)).strftime(LOGDATEFORMAT)}"
-
-	unless WAKEONALARM
-		raise "no wakeonalarm set"
-	end
-
-	system_time = Time.at(WAKEONALARM.to_i - wakeup_in_seconds + (offset*60))
-
-	log.info "setting system time to #{system_time.strftime(LOGDATEFORMAT)}"
-	log.debug "   Timestamp: #{system_time.to_i}"
-
-	if system_time.utc? == false
-		system_time = Time.at(system_time.to_i + system_time.gmt_offset)
-		log.info "setting system time (utc) to #{system_time.strftime(LOGDATEFORMAT)}"
-		log.debug "   Offset: #{system_time.gmt_offset} Timestamp: #{system_time.to_i}"
-	end
-
-	system "/sbin/hwclock -w"
-	system SETTIME % system_time.strftime(SETDATEFORMAT)
-else
-	log.info "no next wakeup set"
-end
-
-exit 0
-
+w = VDRWakeupSystemTime.new
+w.setWakeup ARGV[0].to_i
